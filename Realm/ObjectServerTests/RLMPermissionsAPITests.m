@@ -25,7 +25,9 @@
 #define CHECK_PERMISSION_COUNT_PREDICATE(ma_results, ma_count, ma_op) {                                                \
     XCTestExpectation *ex = [self expectationWithDescription:@"Checking permission count"];                            \
     __weak typeof(ma_results) weakResults = ma_results;                                                                \
-    __attribute__((objc_precise_lifetime))id token = [ma_results addNotificationBlock:^(NSError *err) {                \
+    __attribute__((objc_precise_lifetime))id token = [ma_results addNotificationBlock:^(__unused id r,                 \
+                                                                                        __unused id c,                 \
+                                                                                        NSError *err) {                \
         XCTAssertNil(err);                                                                                             \
         if (weakResults.count ma_op ma_count) {                                                                        \
             [ex fulfill];                                                                                              \
@@ -44,9 +46,11 @@
 #define CHECK_PERMISSION_PRESENT(ma_results, ma_permission) {                                                          \
     XCTestExpectation *ex = [self expectationWithDescription:@"Checking permission presence"];                         \
     __weak typeof(ma_results) weakResults = ma_results;                                                                \
-    __attribute__((objc_precise_lifetime)) id token = [ma_results addNotificationBlock:^(NSError *err) {               \
+    __attribute__((objc_precise_lifetime)) id token = [ma_results addNotificationBlock:^(__unused id r,                \
+                                                                                         __unused id c,                \
+                                                                                         NSError *err) {               \
         XCTAssertNil(err);                                                                                             \
-        for (NSInteger i=0; i<weakResults.count; i++) {                                                                \
+        for (NSUInteger i=0; i<weakResults.count; i++) {                                                               \
             if ([[weakResults objectAtIndex:i] isEqual:ma_permission]) {                                               \
                 [ex fulfill];                                                                                          \
                 break;                                                                                                 \
@@ -62,10 +66,12 @@
 #define CHECK_PERMISSION_ABSENT(ma_results, ma_permission) {                                                           \
     XCTestExpectation *ex = [self expectationWithDescription:@"Checking permission absence"];                          \
     __weak typeof(ma_results) weakResults = ma_results;                                                                \
-    __attribute__((objc_precise_lifetime)) id token = [ma_results addNotificationBlock:^(NSError *err) {               \
+    __attribute__((objc_precise_lifetime)) id token = [ma_results addNotificationBlock:^(__unused id r,                \
+                                                                                         __unused id c,                \
+                                                                                         NSError *err) {               \
         XCTAssertNil(err);                                                                                             \
         BOOL isPresent = NO;                                                                                           \
-        for (NSInteger i=0; i<weakResults.count; i++) {                                                                \
+        for (NSUInteger i=0; i<weakResults.count; i++) {                                                               \
             if ([[weakResults objectAtIndex:i] isEqual:ma_permission]) {                                               \
                 isPresent = YES;                                                                                       \
                 break;                                                                                                 \
@@ -82,9 +88,11 @@
     XCTestExpectation *ex = [self expectationWithDescription:@"Retrieving permission..."];                             \
     __block RLMSyncPermissionValue *value = nil;                                                                       \
     __weak typeof(ma_results) weakResults = ma_results;                                                                \
-    __attribute__((objc_precise_lifetime)) id token = [ma_results addNotificationBlock:^(NSError *err) {               \
+    __attribute__((objc_precise_lifetime)) id token = [ma_results addNotificationBlock:^(__unused id r,                \
+                                                                                         __unused id c,                \
+                                                                                         NSError *err) {               \
         XCTAssertNil(err);                                                                                             \
-        for (NSInteger i=0; i<weakResults.count; i++) {                                                                \
+        for (NSUInteger i=0; i<weakResults.count; i++) {                                                               \
             if ([[weakResults objectAtIndex:i] isEqual:ma_permission]) {                                               \
                 value = [weakResults objectAtIndex:i];                                                                 \
                 [ex fulfill];                                                                                          \
@@ -639,7 +647,7 @@ static RLMSyncPermissionValue *makeExpectedPermission(RLMSyncPermissionValue *or
 
     // Register notifications.
     XCTestExpectation *noteEx = [self expectationWithDescription:@"Notification should fire."];
-    RLMNotificationToken *token = [results addNotificationBlock:^(NSError *error) {
+    RLMNotificationToken *token = [results addNotificationBlock:^(__unused id r, __unused id c, NSError *error) {
         XCTAssertNil(error);
         if (results.count > 0) {
             [noteEx fulfill];
@@ -782,8 +790,9 @@ static RLMSyncPermissionValue *makeExpectedPermission(RLMSyncPermissionValue *or
                                      [NSString stringWithFormat:@"%@%@", NSStringFromSelector(_cmd), @"r3"]);
     RLMSyncPermissionResults *filtered = [results objectsWithPredicate:[NSPredicate predicateWithFormat:@"userId == %@",
                                                                         uB]];
-    RLMSyncPermissionResults *sorted = [filtered sortedResultsUsingProperty:RLMSyncPermissionResultsSortPropertyPath
-                                                                  ascending:YES];
+
+    RLMSyncPermissionResults *sorted = [filtered sortedResultsUsingKeyPath:RLMSyncPermissionSortPropertyPath
+                                                                 ascending:YES];
     // Wait for changes to propagate
     CHECK_PERMISSION_COUNT(sorted, 3);
 
@@ -839,14 +848,14 @@ static RLMSyncPermissionValue *makeExpectedPermission(RLMSyncPermissionValue *or
     [self waitForExpectationsWithTimeout:2.0 handler:nil];
 
     // Now sort on user ID.
-    RLMSyncPermissionResults *sorted = [results sortedResultsUsingProperty:RLMSyncPermissionResultsSortPropertyUserID
-                                                                 ascending:YES];
+    RLMSyncPermissionResults *sorted = [results sortedResultsUsingKeyPath:RLMSyncPermissionSortPropertyUserID
+                                                                ascending:YES];
 
     // Wait for changes to propagate, then check them.
     BOOL seenUserBPermission = NO;
     BOOL seenUserCPermission = NO;
     CHECK_PERMISSION_COUNT_PREDICATE(sorted, 3, >=);
-    for (int i=0; i<sorted.count - 1; i++) {
+    for (NSUInteger i=0; i<sorted.count - 1; i++) {
         NSString *thisID = [sorted objectAtIndex:i].userId;
         NSString *nextID = [sorted objectAtIndex:i + 1].userId;
         seenUserBPermission |= ([thisID isEqualToString:uB] || [nextID isEqualToString:uB]);
@@ -906,8 +915,8 @@ static RLMSyncPermissionValue *makeExpectedPermission(RLMSyncPermissionValue *or
     // Now sort on date. (Note that we only want the results for the user B permissions.)
     RLMSyncPermissionResults *filtered = [results objectsWithPredicate:[NSPredicate predicateWithFormat:@"userId == %@",
                                                                         uB]];
-    RLMSyncPermissionResults *sorted = [filtered sortedResultsUsingProperty:RLMSyncPermissionResultsSortDateUpdated
-                                                                  ascending:YES];
+    RLMSyncPermissionResults *sorted = [filtered sortedResultsUsingKeyPath:RLMSyncPermissionSortPropertyUpdated
+                                                                 ascending:YES];
 
     // Wait for changes to propagate
     CHECK_PERMISSION_COUNT(sorted, 3);
@@ -922,6 +931,47 @@ static RLMSyncPermissionValue *makeExpectedPermission(RLMSyncPermissionValue *or
     // Make sure they are actually in ascending order.
     XCTAssertLessThan([n1.updatedAt timeIntervalSinceReferenceDate], [n2.updatedAt timeIntervalSinceReferenceDate]);
     XCTAssertLessThan([n2.updatedAt timeIntervalSinceReferenceDate], [n3.updatedAt timeIntervalSinceReferenceDate]);
+}
+
+- (void)testPermissionResultsIndexOfObjectWithPredicate {
+    // Get a reference to the permission results.
+    XCTestExpectation *ex = [self expectationWithDescription:@"Get permission results."];
+    __block RLMSyncPermissionResults *results = nil;
+    [self.userA retrievePermissionsWithCallback:^(RLMSyncPermissionResults *r, NSError *error) {
+        XCTAssertNil(error);
+        XCTAssertNotNil(r);
+        results = r;
+        [ex fulfill];
+    }];
+    [self waitForExpectationsWithTimeout:2.0 handler:nil];
+
+    // Open a Realm
+    NSURL *url = REALM_URL();
+    __attribute__((objc_precise_lifetime)) RLMRealm *realm = [self openRealmForURL:url user:self.userA];
+    NSString *uB = self.userB.identity;
+
+    // Give user B read permission for the Realm.
+    XCTestExpectation *ex2 = [self expectationWithDescription:@"Setting r1 permission for user B should work."];
+    id p1 = [[RLMSyncPermissionValue alloc] initWithRealmPath:[url path] userID:uB accessLevel:RLMSyncAccessLevelRead];
+    [self.userA applyPermission:p1 callback:^(NSError *error) {
+        XCTAssertNil(error);
+        [ex2 fulfill];
+    }];
+    [self waitForExpectationsWithTimeout:10.0 handler:nil];
+
+    // Wait for changes to propagate
+    CHECK_PERMISSION_COUNT_PREDICATE(results, 2, >=);
+
+    // Create the predicate and retrieve the index of the object.
+#warning TODO: how can we use the literals?
+    NSPredicate *pred = [NSPredicate predicateWithFormat:@"userId == %@", uB];   // RLMSyncPermissionSortPropertyUserID
+    NSUInteger index = [results indexOfObjectWithPredicate:pred];
+    XCTAssertNotEqual(index, NSNotFound);
+    if (index == NSNotFound) {
+        return;
+    }
+    RLMSyncPermissionValue *target = [results objectAtIndex:index];
+    XCTAssertEqualObjects(target.userId, uB);
 }
 
 /// User should not be able to change a permission for a Realm they don't own.
